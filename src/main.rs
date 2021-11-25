@@ -1,4 +1,4 @@
-use actix_web::{post, web, App, HttpResponse, HttpServer, Responder, Result};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use serde::Deserialize;
 use std::sync::Mutex;
 
@@ -12,10 +12,9 @@ struct AppStateWithCounter {
 }
 
 async fn index(data: web::Data<AppStateWithCounter>) -> String {
-    let mut counter = data.counter.lock().unwrap(); // <- get counter's MutexGuard
-    *counter += 1; // <- access counter inside MutexGuard
-
-    format!("Request number: {}", counter) // <- response with count
+    let mut counter = data.counter.lock().unwrap();
+    *counter += 1; 
+    format!("Request number: {}", counter)
 }
 
 #[actix_web::main]
@@ -25,13 +24,12 @@ async fn main() -> std::io::Result<()> {
     });
 
     HttpServer::new(move || {
-        // move counter into the closure
         App::new()
-            // Note: using app_data instead of data
-            .app_data(counter.clone()) // <- register the created data
+            .app_data(counter.clone())
             .route("/", web::get().to(index))
             .route("/foo", web::post().to(foo))
             .service(echo)
+            .service(bar)
     })
     .bind("127.0.0.1:8080")?
     .run()
@@ -44,8 +42,16 @@ async fn echo(req_body: String) -> impl Responder {
     HttpResponse::Ok().body(req_body)
 }
 
-// not working?
-async fn foo(info: web::Json<Info>) -> Result<String> {
+// working;
+// On Windows, test with `curl -X POST http://127.0.0.1:8080/foo -d "{\"username\":\"a\"}" -H "Content-Type: application/json"`
+async fn foo(info: web::Json<Info>) -> impl Responder {
     println!("Welcome {}!", info.username);
+    HttpResponse::Ok().body(format!("Welcome {}!", info.username))
+}
+
+// working; 
+// On Windows, test with `curl -X GET http://127.0.0.1:8080/bar -d "{\"username\":\"a\"}" -H "Content-Type: application/json"`
+#[get("/bar")]
+async fn bar(info: web::Json<Info>) -> Result<String> {
     Ok(format!("Welcome {}!", info.username))
 }
